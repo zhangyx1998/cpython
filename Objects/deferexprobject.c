@@ -51,74 +51,75 @@ static void defer_expr_dealloc(PyObject *self) {
 }
 
 // Core idea of the DeferExpr - observation triggers evaluation
-#define OBSERVE(OBJ, val)                                                      \
-  PyObject *val;                                                               \
+#define OBSERVE(OBJ)                                                           \
   {                                                                            \
-    if (Py_IS_TYPE(OBJ, &PyDeferExpr_Type)) {                                  \
+    while (Py_IS_TYPE(OBJ, &PyDeferExpr_Type)) {                               \
       PyFunctionObject *lambda = _Py_CAST(PyDeferExprObject *, OBJ)->lambda;   \
-      val = PyObject_CallNoArgs(_Py_CAST(PyObject *, lambda));                 \
-    } else {                                                                   \
-      PyErr_BadInternalCall();                                                 \
-      val = NULL;                                                              \
+      OBJ = PyObject_CallNoArgs(_Py_CAST(PyObject *, lambda));                 \
     }                                                                          \
   }                                                                            \
-  if (val == NULL) // OBSERVE(...) { <cond-failure> }
+  if (OBJ == NULL) // OBSERVE(...) { <cond-failure> }
 
 // Mirror a function call on DeferExpr to the observed value.
 // This should be used as a fallback when Py_XXX API is not available.
-#define LOOKUP(val, hook, hook_type)                                           \
+#define LOOKUP(self, hook, hook_type)                                          \
   hook_type hook = NULL;                                                       \
-  hook = Py_TYPE(val)->tp_##hook;                                              \
+  hook = Py_TYPE(self)->tp_##hook;                                             \
   if (hook == NULL) // LOOKUP(...) { <cond-failure> }
 
 #define ON_FAILURE(expr) expr // Helps to make the code more expressive
 
 static PyObject *defer_expr_getattr(PyObject *self, char *attr) {
-  OBSERVE(self, val) ON_FAILURE(return NULL);
-  return PyObject_GetAttrString(val, attr);
+  OBSERVE(self) ON_FAILURE(return NULL);
+  return PyObject_GetAttrString(self, attr);
 }
 
 static int defer_expr_setattr(PyObject *self, char *attr, PyObject *value) {
-  OBSERVE(self, val) ON_FAILURE(return -1);
-  return PyObject_SetAttrString(val, attr, value);
+  OBSERVE(self) ON_FAILURE(return -1);
+  return PyObject_SetAttrString(self, attr, value);
 }
 
 static PyObject *defer_expr_repr(PyObject *self) {
-  OBSERVE(self, val) ON_FAILURE(return NULL);
-  return PyObject_Repr(val);
+  OBSERVE(self) ON_FAILURE(return NULL);
+  return PyObject_Repr(self);
 }
 
 /* ==================== Proxy of all the number methods ==================== */
 
 #define DEFER_EXPR_NB_COMMON(FUNC_TYPE, OPERAND, PANIC)                        \
-  OBSERVE(op, val) ON_FAILURE(PANIC);                                          \
-  if (!PyNumber_Check(val)) {                                                  \
+  if (!PyNumber_Check(op0)) {                                                  \
     PyErr_SetString(PyExc_TypeError, "object is not numeric");                 \
     PANIC;                                                                     \
   }                                                                            \
-  FUNC_TYPE operand = Py_TYPE(val)->tp_as_number->nb_##OPERAND;                \
+  FUNC_TYPE operand = Py_TYPE(op0)->tp_as_number->nb_##OPERAND;                \
   if (operand == NULL) {                                                       \
     PyErr_SetString(PyExc_TypeError, #OPERAND " not supported");               \
     PANIC;                                                                     \
   }
 
 #define DEFER_EXPR_UNARY_FUNC(OPERAND)                                         \
-  static PyObject *defer_expr_nb_##OPERAND(PyObject *op) {                     \
+  static PyObject *defer_expr_nb_##OPERAND(PyObject *op0) {                    \
+    OBSERVE(op0) ON_FAILURE(return NULL);                                      \
     DEFER_EXPR_NB_COMMON(unaryfunc, OPERAND, return NULL);                     \
-    return operand(val);                                                       \
+    return operand(op0);                                                       \
   }
 
 #define DEFER_EXPR_BINARY_FUNC(OPERAND)                                        \
-  static PyObject *defer_expr_nb_##OPERAND(PyObject *op, PyObject *other) {    \
+  static PyObject *defer_expr_nb_##OPERAND(PyObject *op0, PyObject *op1) {     \
+    OBSERVE(op0) ON_FAILURE(return NULL);                                      \
+    OBSERVE(op1) ON_FAILURE(return NULL);                                      \
     DEFER_EXPR_NB_COMMON(binaryfunc, OPERAND, return NULL);                    \
-    return operand(val, other);                                                \
+    return operand(op0, op1);                                                  \
   }
 
 #define DEFER_EXPR_TERNARY_FUNC(OPERAND)                                       \
-  static PyObject *defer_expr_nb_##OPERAND(PyObject *op, PyObject *op1,        \
+  static PyObject *defer_expr_nb_##OPERAND(PyObject *op0, PyObject *op1,       \
                                            PyObject *op2) {                    \
+    OBSERVE(op0) ON_FAILURE(return NULL);                                      \
+    OBSERVE(op1) ON_FAILURE(return NULL);                                      \
+    OBSERVE(op2) ON_FAILURE(return NULL);                                      \
     DEFER_EXPR_NB_COMMON(ternaryfunc, OPERAND, return NULL);                   \
-    return operand(val, op1, op2);                                             \
+    return operand(op0, op1, op2);                                             \
   }
 
 DEFER_EXPR_BINARY_FUNC(add);
@@ -131,8 +132,8 @@ DEFER_EXPR_UNARY_FUNC(negative);
 DEFER_EXPR_UNARY_FUNC(positive);
 DEFER_EXPR_UNARY_FUNC(absolute);
 static int defer_expr_nb_bool(PyObject *self) {
-  OBSERVE(self, val) ON_FAILURE(return -1);
-  return PyObject_IsTrue(val);
+  OBSERVE(self) ON_FAILURE(return -1);
+  return PyObject_IsTrue(self);
 }
 DEFER_EXPR_UNARY_FUNC(invert);
 DEFER_EXPR_BINARY_FUNC(lshift);
@@ -201,36 +202,36 @@ static PyNumberMethods defer_expr_as_number = {
 
 /* ================== END Proxy of all the number methods ================== */
 
-static Py_hash_t defer_expr_hash(PyObject *v) {
-  OBSERVE(v, val) ON_FAILURE(return -1);
-  return PyObject_Hash(val);
+static Py_hash_t defer_expr_hash(PyObject *self) {
+  OBSERVE(self) ON_FAILURE(return -1);
+  return PyObject_Hash(self);
 }
 
 static PyObject *defer_expr_call(PyObject *self, PyObject *args,
                                  PyObject *kwargs) {
-  OBSERVE(self, val) ON_FAILURE(return NULL);
-  return PyObject_Call(val, args, kwargs);
+  OBSERVE(self) ON_FAILURE(return NULL);
+  return PyObject_Call(self, args, kwargs);
 }
 
 static PyObject *defer_expr_str(PyObject *self) {
-  OBSERVE(self, val) ON_FAILURE(return NULL);
-  return PyObject_Str(val);
+  OBSERVE(self) ON_FAILURE(return NULL);
+  return PyObject_Str(self);
 }
 
 static PyObject *defer_expr_getattro(PyObject *self, PyObject *attr) {
-  OBSERVE(self, val) ON_FAILURE(return NULL);
-  return PyObject_GetAttr(val, attr);
+  OBSERVE(self) ON_FAILURE(return NULL);
+  return PyObject_GetAttr(self, attr);
 }
 
 static int defer_expr_setattro(PyObject *self, PyObject *attr,
                                PyObject *value) {
-  OBSERVE(self, val) ON_FAILURE(return -1);
-  return PyObject_SetAttr(val, attr, value);
+  OBSERVE(self) ON_FAILURE(return -1);
+  return PyObject_SetAttr(self, attr, value);
 }
 
 static int defer_expr_traverse(PyObject *self, visitproc visit, void *arg) {
-  OBSERVE(self, val) ON_FAILURE(return -1);
-  Py_VISIT(val);
+  OBSERVE(self) ON_FAILURE(return -1);
+  Py_VISIT(self);
   return 0;
 }
 
@@ -249,45 +250,45 @@ static int defer_expr_clear(PyObject *self) {
 
 static PyObject *defer_expr_richcompare(PyObject *self, PyObject *other,
                                         int op) {
-  OBSERVE(self, val) ON_FAILURE(return NULL);
-  return PyObject_RichCompare(val, other, op);
+  OBSERVE(self) ON_FAILURE(return NULL);
+  return PyObject_RichCompare(self, other, op);
 }
 
 static PyObject *defer_expr_iter(PyObject *self) {
-  OBSERVE(self, val) ON_FAILURE(return NULL);
-  return PyObject_GetIter(val);
+  OBSERVE(self) ON_FAILURE(return NULL);
+  return PyObject_GetIter(self);
 }
 
 static PyObject *defer_expr_iternext(PyObject *self) {
-  OBSERVE(self, val) ON_FAILURE(return NULL);
-  LOOKUP(val, iternext, iternextfunc)
+  OBSERVE(self) ON_FAILURE(return NULL);
+  LOOKUP(self, iternext, iternextfunc)
   ON_FAILURE({
     PyErr_SetString(PyExc_TypeError, "object is not iterable");
     return NULL;
   });
-  return iternext(val);
+  return iternext(self);
 }
 
 static PyObject *defer_expr_descr_get(PyObject *self, PyObject *obj,
                                       PyObject *type) {
-  OBSERVE(self, val) ON_FAILURE(return NULL);
-  LOOKUP(val, descr_get, descrgetfunc)
+  OBSERVE(self) ON_FAILURE(return NULL);
+  LOOKUP(self, descr_get, descrgetfunc)
   ON_FAILURE({
     PyErr_SetString(PyExc_TypeError, "object is not a descriptor");
     return NULL;
   });
-  return descr_get(val, obj, type);
+  return descr_get(self, obj, type);
 }
 
 static int defer_expr_descr_set(PyObject *self, PyObject *obj,
                                 PyObject *value) {
-  OBSERVE(self, val) ON_FAILURE(return -1);
-  LOOKUP(val, descr_set, descrsetfunc)
+  OBSERVE(self) ON_FAILURE(return -1);
+  LOOKUP(self, descr_set, descrsetfunc)
   ON_FAILURE({
     PyErr_SetString(PyExc_TypeError, "object is not a descriptor");
     return -1;
   });
-  return descr_set(val, obj, value);
+  return descr_set(self, obj, value);
 }
 
 PyTypeObject PyDeferExpr_Type = {
