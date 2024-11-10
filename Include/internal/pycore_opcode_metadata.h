@@ -353,6 +353,8 @@ int _PyOpcode_num_popped(int opcode, int oparg)  {
             return 3;
         case MAKE_CELL:
             return 0;
+        case MAKE_DEFER_EXPR:
+            return 1;
         case MAKE_FUNCTION:
             return 1;
         case MAP_ADD:
@@ -812,6 +814,8 @@ int _PyOpcode_num_pushed(int opcode, int oparg)  {
             return 2;
         case MAKE_CELL:
             return 0;
+        case MAKE_DEFER_EXPR:
+            return 1;
         case MAKE_FUNCTION:
             return 1;
         case MAP_ADD:
@@ -1168,6 +1172,7 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[266] = {
     [LOAD_SUPER_ATTR_ATTR] = { true, INSTR_FMT_IBC, HAS_ARG_FLAG | HAS_NAME_FLAG | HAS_DEOPT_FLAG | HAS_ERROR_FLAG | HAS_ESCAPES_FLAG },
     [LOAD_SUPER_ATTR_METHOD] = { true, INSTR_FMT_IBC, HAS_ARG_FLAG | HAS_NAME_FLAG | HAS_DEOPT_FLAG | HAS_ERROR_FLAG | HAS_ESCAPES_FLAG },
     [MAKE_CELL] = { true, INSTR_FMT_IB, HAS_ARG_FLAG | HAS_FREE_FLAG | HAS_ERROR_FLAG | HAS_ERROR_NO_POP_FLAG },
+    [MAKE_DEFER_EXPR] = { true, INSTR_FMT_IX, HAS_ERROR_FLAG | HAS_ESCAPES_FLAG },
     [MAKE_FUNCTION] = { true, INSTR_FMT_IX, HAS_ERROR_FLAG | HAS_ESCAPES_FLAG },
     [MAP_ADD] = { true, INSTR_FMT_IB, HAS_ARG_FLAG | HAS_ERROR_FLAG | HAS_ESCAPES_FLAG },
     [MATCH_CLASS] = { true, INSTR_FMT_IB, HAS_ARG_FLAG | HAS_ERROR_FLAG | HAS_ESCAPES_FLAG },
@@ -1372,6 +1377,7 @@ _PyOpcode_macro_expansion[256] = {
     [LOAD_SUPER_ATTR_ATTR] = { .nuops = 1, .uops = { { _LOAD_SUPER_ATTR_ATTR, 0, 0 } } },
     [LOAD_SUPER_ATTR_METHOD] = { .nuops = 1, .uops = { { _LOAD_SUPER_ATTR_METHOD, 0, 0 } } },
     [MAKE_CELL] = { .nuops = 1, .uops = { { _MAKE_CELL, 0, 0 } } },
+    [MAKE_DEFER_EXPR] = { .nuops = 1, .uops = { { _MAKE_DEFER_EXPR, 0, 0 } } },
     [MAKE_FUNCTION] = { .nuops = 1, .uops = { { _MAKE_FUNCTION, 0, 0 } } },
     [MAP_ADD] = { .nuops = 1, .uops = { { _MAP_ADD, 0, 0 } } },
     [MATCH_CLASS] = { .nuops = 1, .uops = { { _MATCH_CLASS, 0, 0 } } },
@@ -1592,6 +1598,7 @@ const char *_PyOpcode_OpName[266] = {
     [LOAD_SUPER_ATTR_ATTR] = "LOAD_SUPER_ATTR_ATTR",
     [LOAD_SUPER_ATTR_METHOD] = "LOAD_SUPER_ATTR_METHOD",
     [MAKE_CELL] = "MAKE_CELL",
+    [MAKE_DEFER_EXPR] = "MAKE_DEFER_EXPR",
     [MAKE_FUNCTION] = "MAKE_FUNCTION",
     [MAP_ADD] = "MAP_ADD",
     [MATCH_CLASS] = "MATCH_CLASS",
@@ -1843,6 +1850,7 @@ const uint8_t _PyOpcode_Deopt[256] = {
     [LOAD_SUPER_ATTR_ATTR] = LOAD_SUPER_ATTR,
     [LOAD_SUPER_ATTR_METHOD] = LOAD_SUPER_ATTR,
     [MAKE_CELL] = MAKE_CELL,
+    [MAKE_DEFER_EXPR] = MAKE_DEFER_EXPR,
     [MAKE_FUNCTION] = MAKE_FUNCTION,
     [MAP_ADD] = MAP_ADD,
     [MATCH_CLASS] = MATCH_CLASS,
@@ -1908,7 +1916,6 @@ const uint8_t _PyOpcode_Deopt[256] = {
 #endif // NEED_OPCODE_METADATA
 
 #define EXTRA_CASES \
-    case 116: \
     case 117: \
     case 118: \
     case 119: \

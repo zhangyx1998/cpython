@@ -4533,6 +4533,14 @@ dummy_func(
             func = PyStackRef_FromPyObjectSteal((PyObject *)func_obj);
         }
 
+        inst(MAKE_DEFER_EXPR, (func_in -- defer_expr_out)) {
+          PyObject *func = PyStackRef_AsPyObjectBorrow(func_in);
+          PyObject *defer_expr = PyDeferExpr_New(func);
+          PyStackRef_CLOSE(func_in);
+          ERROR_IF(defer_expr == NULL, error);
+          defer_expr_out = PyStackRef_FromPyObjectSteal(defer_expr);
+        }
+
         inst(SET_FUNCTION_ATTRIBUTE, (attr_st, func_in -- func_out)) {
             PyObject *func = PyStackRef_AsPyObjectBorrow(func_in);
             PyObject *attr = PyStackRef_AsPyObjectSteal(attr_st);

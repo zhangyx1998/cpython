@@ -530,6 +530,7 @@ OBJECT_OBJS=	\
 		Objects/classobject.o \
 		Objects/codeobject.o \
 		Objects/complexobject.o \
+		Objects/deferexprobject.o \
 		Objects/descrobject.o \
 		Objects/enumobject.o \
 		Objects/exceptions.o \
@@ -1130,6 +1131,7 @@ PYTHON_HEADERS= \
 		$(srcdir)/Include/cpython/complexobject.h \
 		$(srcdir)/Include/cpython/context.h \
 		$(srcdir)/Include/cpython/critical_section.h \
+		$(srcdir)/Include/cpython/deferexprobject.h \
 		$(srcdir)/Include/cpython/descrobject.h \
 		$(srcdir)/Include/cpython/dictobject.h \
 		$(srcdir)/Include/cpython/fileobject.h \

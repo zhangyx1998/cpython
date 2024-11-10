@@ -65,6 +65,7 @@ void _PyAST_Fini(PyInterpreterState *interp)
     Py_CLEAR(state->Compare_type);
     Py_CLEAR(state->Constant_type);
     Py_CLEAR(state->Continue_type);
+    Py_CLEAR(state->DeferStmt_type);
     Py_CLEAR(state->Del_singleton);
     Py_CLEAR(state->Del_type);
     Py_CLEAR(state->Delete_type);
@@ -462,6 +463,10 @@ static const char * const AugAssign_fields[]={
     "target",
     "op",
     "value",
+};
+static const char * const DeferStmt_fields[]={
+    "target",
+    "body",
 };
 static const char * const AnnAssign_fields[]={
     "target",
@@ -1517,6 +1522,41 @@ add_ast_annotations(struct ast_state *state)
         return 0;
     }
     Py_DECREF(AugAssign_annotations);
+    PyObject *DeferStmt_annotations = PyDict_New();
+    if (!DeferStmt_annotations) return 0;
+    {
+        PyObject *type = state->expr_type;
+        Py_INCREF(type);
+        cond = PyDict_SetItemString(DeferStmt_annotations, "target", type) == 0;
+        Py_DECREF(type);
+        if (!cond) {
+            Py_DECREF(DeferStmt_annotations);
+            return 0;
+        }
+    }
+    {
+        PyObject *type = state->expr_type;
+        Py_INCREF(type);
+        cond = PyDict_SetItemString(DeferStmt_annotations, "body", type) == 0;
+        Py_DECREF(type);
+        if (!cond) {
+            Py_DECREF(DeferStmt_annotations);
+            return 0;
+        }
+    }
+    cond = PyObject_SetAttrString(state->DeferStmt_type, "_field_types",
+                                  DeferStmt_annotations) == 0;
+    if (!cond) {
+        Py_DECREF(DeferStmt_annotations);
+        return 0;
+    }
+    cond = PyObject_SetAttrString(state->DeferStmt_type, "__annotations__",
+                                  DeferStmt_annotations) == 0;
+    if (!cond) {
+        Py_DECREF(DeferStmt_annotations);
+        return 0;
+    }
+    Py_DECREF(DeferStmt_annotations);
     PyObject *AnnAssign_annotations = PyDict_New();
     if (!AnnAssign_annotations) return 0;
     {
@@ -6091,6 +6131,7 @@ init_types(void *arg)
         "     | Assign(expr* targets, expr value, string? type_comment)\n"
         "     | TypeAlias(expr name, type_param* type_params, expr value)\n"
         "     | AugAssign(expr target, operator op, expr value)\n"
+        "     | DeferStmt(expr target, expr body)\n"
         "     | AnnAssign(expr target, expr annotation, expr? value, int simple)\n"
         "     | For(expr target, expr iter, stmt* body, stmt* orelse, string? type_comment)\n"
         "     | AsyncFor(expr target, expr iter, stmt* body, stmt* orelse, string? type_comment)\n"
@@ -6169,6 +6210,10 @@ init_types(void *arg)
                                       AugAssign_fields, 3,
         "AugAssign(expr target, operator op, expr value)");
     if (!state->AugAssign_type) return -1;
+    state->DeferStmt_type = make_type(state, "DeferStmt", state->stmt_type,
+                                      DeferStmt_fields, 2,
+        "DeferStmt(expr target, expr body)");
+    if (!state->DeferStmt_type) return -1;
     state->AnnAssign_type = make_type(state, "AnnAssign", state->stmt_type,
                                       AnnAssign_fields, 4,
         "AnnAssign(expr target, expr annotation, expr? value, int simple)");
@@ -7169,6 +7214,34 @@ _PyAST_AugAssign(expr_ty target, operator_ty op, expr_ty value, int lineno, int
     p->v.AugAssign.target = target;
     p->v.AugAssign.op = op;
     p->v.AugAssign.value = value;
+    p->lineno = lineno;
+    p->col_offset = col_offset;
+    p->end_lineno = end_lineno;
+    p->end_col_offset = end_col_offset;
+    return p;
+}
+
+stmt_ty
+_PyAST_DeferStmt(expr_ty target, expr_ty body, int lineno, int col_offset, int
+                 end_lineno, int end_col_offset, PyArena *arena)
+{
+    stmt_ty p;
+    if (!target) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'target' is required for DeferStmt");
+        return NULL;
+    }
+    if (!body) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'body' is required for DeferStmt");
+        return NULL;
+    }
+    p = (stmt_ty)_PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->kind = DeferStmt_kind;
+    p->v.DeferStmt.target = target;
+    p->v.DeferStmt.body = body;
     p->lineno = lineno;
     p->col_offset = col_offset;
     p->end_lineno = end_lineno;
@@ -9017,6 +9090,21 @@ ast2obj_stmt(struct ast_state *state, struct validator *vstate, void* _o)
         value = ast2obj_expr(state, vstate, o->v.AugAssign.value);
         if (!value) goto failed;
         if (PyObject_SetAttr(result, state->value, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        break;
+    case DeferStmt_kind:
+        tp = (PyTypeObject *)state->DeferStmt_type;
+        result = PyType_GenericNew(tp, NULL, NULL);
+        if (!result) goto failed;
+        value = ast2obj_expr(state, vstate, o->v.DeferStmt.target);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->target, value) == -1)
+            goto failed;
+        Py_DECREF(value);
+        value = ast2obj_expr(state, vstate, o->v.DeferStmt.body);
+        if (!value) goto failed;
+        if (PyObject_SetAttr(result, state->body, value) == -1)
             goto failed;
         Py_DECREF(value);
         break;
@@ -12021,6 +12109,54 @@ obj2ast_stmt(struct ast_state *state, PyObject* obj, stmt_ty* out, PyArena*
         }
         *out = _PyAST_AugAssign(target, op, value, lineno, col_offset,
                                 end_lineno, end_col_offset, arena);
+        if (*out == NULL) goto failed;
+        return 0;
+    }
+    tp = state->DeferStmt_type;
+    isinstance = PyObject_IsInstance(obj, tp);
+    if (isinstance == -1) {
+        return -1;
+    }
+    if (isinstance) {
+        expr_ty target;
+        expr_ty body;
+
+        if (PyObject_GetOptionalAttr(obj, state->target, &tmp) < 0) {
+            return -1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"target\" missing from DeferStmt");
+            return -1;
+        }
+        else {
+            int res;
+            if (_Py_EnterRecursiveCall(" while traversing 'DeferStmt' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &target, arena);
+            _Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        if (PyObject_GetOptionalAttr(obj, state->body, &tmp) < 0) {
+            return -1;
+        }
+        if (tmp == NULL) {
+            PyErr_SetString(PyExc_TypeError, "required field \"body\" missing from DeferStmt");
+            return -1;
+        }
+        else {
+            int res;
+            if (_Py_EnterRecursiveCall(" while traversing 'DeferStmt' node")) {
+                goto failed;
+            }
+            res = obj2ast_expr(state, tmp, &body, arena);
+            _Py_LeaveRecursiveCall();
+            if (res != 0) goto failed;
+            Py_CLEAR(tmp);
+        }
+        *out = _PyAST_DeferStmt(target, body, lineno, col_offset, end_lineno,
+                                end_col_offset, arena);
         if (*out == NULL) goto failed;
         return 0;
     }
@@ -17761,6 +17897,9 @@ astmodule_exec(PyObject *m)
         return -1;
     }
     if (PyModule_AddObjectRef(m, "AugAssign", state->AugAssign_type) < 0) {
+        return -1;
+    }
+    if (PyModule_AddObjectRef(m, "DeferStmt", state->DeferStmt_type) < 0) {
         return -1;
     }
     if (PyModule_AddObjectRef(m, "AnnAssign", state->AnnAssign_type) < 0) {

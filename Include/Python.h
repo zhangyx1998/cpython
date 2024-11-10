@@ -97,6 +97,7 @@
 #include "monitoring.h"
 #include "cpython/funcobject.h"
 #include "cpython/classobject.h"
+#include "cpython/deferexprobject.h"
 #include "fileobject.h"
 #include "pycapsule.h"
 #include "cpython/code.h"

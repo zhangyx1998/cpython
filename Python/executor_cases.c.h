@@ -5404,6 +5404,21 @@
             break;
         }
 
+        case _MAKE_DEFER_EXPR: {
+            _PyStackRef func_in;
+            _PyStackRef defer_expr_out;
+            func_in = stack_pointer[-1];
+            PyObject *func = PyStackRef_AsPyObjectBorrow(func_in);
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            PyObject *defer_expr = PyDeferExpr_New(func);
+            stack_pointer = _PyFrame_GetStackPointer(frame);
+            PyStackRef_CLOSE(func_in);
+            if (defer_expr == NULL) JUMP_TO_ERROR();
+            defer_expr_out = PyStackRef_FromPyObjectSteal(defer_expr);
+            stack_pointer[-1] = defer_expr_out;
+            break;
+        }
+
         case _SET_FUNCTION_ATTRIBUTE: {
             _PyStackRef func_in;
             _PyStackRef attr_st;

@@ -6493,6 +6493,24 @@
             DISPATCH();
         }
 
+        TARGET(MAKE_DEFER_EXPR) {
+            frame->instr_ptr = next_instr;
+            next_instr += 1;
+            INSTRUCTION_STATS(MAKE_DEFER_EXPR);
+            _PyStackRef func_in;
+            _PyStackRef defer_expr_out;
+            func_in = stack_pointer[-1];
+            PyObject *func = PyStackRef_AsPyObjectBorrow(func_in);
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            PyObject *defer_expr = PyDeferExpr_New(func);
+            stack_pointer = _PyFrame_GetStackPointer(frame);
+            PyStackRef_CLOSE(func_in);
+            if (defer_expr == NULL) goto pop_1_error;
+            defer_expr_out = PyStackRef_FromPyObjectSteal(defer_expr);
+            stack_pointer[-1] = defer_expr_out;
+            DISPATCH();
+        }
+
         TARGET(MAKE_FUNCTION) {
             frame->instr_ptr = next_instr;
             next_instr += 1;

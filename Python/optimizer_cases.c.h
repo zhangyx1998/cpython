@@ -2193,6 +2193,13 @@
             break;
         }
 
+        case _MAKE_DEFER_EXPR: {
+            _Py_UopsSymbol *defer_expr_out;
+            defer_expr_out = sym_new_not_null(ctx);
+            stack_pointer[-1] = defer_expr_out;
+            break;
+        }
+
         case _SET_FUNCTION_ATTRIBUTE: {
             _Py_UopsSymbol *func_out;
             func_out = sym_new_not_null(ctx);

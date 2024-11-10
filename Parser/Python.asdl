@@ -27,6 +27,8 @@ module Python
           | Assign(expr* targets, expr value, string? type_comment)
           | TypeAlias(expr name, type_param* type_params, expr value)
           | AugAssign(expr target, operator op, expr value)
+          -- Create and assign DeferExpr to a variable (hence a statement)
+          | DeferStmt(expr target, expr body)
           -- 'simple' indicates that we annotate simple name without parens
           | AnnAssign(expr target, expr annotation, expr? value, int simple)
 

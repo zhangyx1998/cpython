@@ -112,6 +112,7 @@ simple_stmts[asdl_stmt_seq*]:
 # will throw a SyntaxError.
 simple_stmt[stmt_ty] (memo):
     | assignment
+    | defer_stmt
     | &"type" type_alias
     | e=star_expressions { _PyAST_Expr(e, EXTRA) }
     | &'return' return_stmt
@@ -173,6 +174,15 @@ augassign[AugOperator*]:
     | '>>=' { _PyPegen_augoperator(p, RShift) }
     | '**=' { _PyPegen_augoperator(p, Pow) }
     | '//=' { _PyPegen_augoperator(p, FloorDiv) }
+
+defer_stmt[stmt_ty]: 
+    | a=single_target b=defer_expr { _PyAST_DeferStmt(a, b, EXTRA) }
+
+# We borrow the lambda syntax for defer expressions, for a different kind
+defer_expr[expr_ty]:
+    | '=>' b=expression {
+        _PyAST_Lambda(CHECK(arguments_ty, _PyPegen_empty_arguments(p)), b, EXTRA) }
+    # TODO: Allow type annotation on defer_expr objects
 
 return_stmt[stmt_ty]:
     | 'return' a=[star_expressions] { _PyAST_Return(a, EXTRA) }
@@ -1024,6 +1034,9 @@ kwarg_or_double_starred[KeywordOrStarred*]:
     | a=NAME '=' b=expression {
         _PyPegen_keyword_or_starred(p, CHECK(keyword_ty, _PyAST_keyword(a->v.Name.id, b, EXTRA)), 1) }
     | '**' a=expression { _PyPegen_keyword_or_starred(p, CHECK(keyword_ty, _PyAST_keyword(NULL, a, EXTRA)), 1) }
+    # TODO: Make the following work
+    # | a=NAME '=>' b=expression {
+    #     _PyPegen_keyword_or_starred(p, CHECK(keyword_ty, _PyAST_defer_kw(a->v.Name.id, b, EXTRA)), 1) }
 
 # ASSIGNMENT TARGETS
 # ==================

@@ -196,6 +196,7 @@ static int codegen_visit_keyword(compiler *, keyword_ty);
 static int codegen_visit_expr(compiler *, expr_ty);
 static int codegen_augassign(compiler *, stmt_ty);
 static int codegen_annassign(compiler *, stmt_ty);
+static int codegen_defer_stmt(compiler *, stmt_ty);
 static int codegen_subscript(compiler *, expr_ty);
 static int codegen_slice_two_parts(compiler *, expr_ty);
 static int codegen_slice(compiler *, expr_ty);
@@ -2890,6 +2891,8 @@ codegen_visit_stmt(compiler *c, stmt_ty s)
         return codegen_augassign(c, s);
     case AnnAssign_kind:
         return codegen_annassign(c, s);
+    case DeferStmt_kind:
+        return codegen_defer_stmt(c, s);
     case For_kind:
         return codegen_for(c, s);
     case While_kind:
@@ -5244,6 +5247,20 @@ codegen_annassign(compiler *c, stmt_ty s)
     /* Annotation is evaluated last. */
     if (future_annotations && !s->v.AnnAssign.simple && codegen_check_annotation(c, s) < 0) {
         return ERROR;
+    }
+    return SUCCESS;
+}
+
+static int
+codegen_defer_stmt(compiler *c, stmt_ty s)
+{
+    location loc = LOC(s);
+    assert(s->kind == DeferStmt_kind);
+    /* Actual assignment is all we need. */
+    if (s->v.DeferStmt.body) {
+        VISIT(c, expr, s->v.DeferStmt.body);
+        ADDOP(c, loc, MAKE_DEFER_EXPR);
+        VISIT(c, expr, s->v.DeferStmt.target);
     }
     return SUCCESS;
 }

@@ -1710,6 +1710,7 @@ class TestTokenize(TestCase):
         self.assertExactTypeEqual('->', token.RARROW)
         self.assertExactTypeEqual('@', token.AT)
         self.assertExactTypeEqual('@=', token.ATEQUAL)
+        self.assertExactTypeEqual('=>', token.RDARROW)
 
         self.assertExactTypeEqual('a**2+b**2==c**2',
                                   tokenize.NAME, token.DOUBLESTAR, tokenize.NUMBER,

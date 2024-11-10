@@ -754,6 +754,9 @@ validate_stmt(struct validator *state, stmt_ty stmt)
         ret = validate_assignlist(state, stmt->v.Assign.targets, Store) &&
             validate_expr(state, stmt->v.Assign.value, Load);
         break;
+    case DeferStmt_kind:
+        ret = validate_expr(state, stmt->v.DeferStmt.body, Load);
+        break;
     case AugAssign_kind:
         ret = validate_expr(state, stmt->v.AugAssign.target, Store) &&
             validate_expr(state, stmt->v.AugAssign.value, Load);

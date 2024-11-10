@@ -205,6 +205,10 @@
 
    Token value for ``"!"``.
 
+.. data:: RDARROW
+
+   Token value for ``"=>"``.
+
 .. data:: OP
 
 .. data:: TYPE_IGNORE

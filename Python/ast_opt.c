@@ -939,6 +939,10 @@ astfold_stmt(stmt_ty node_, PyArena *ctx_, _PyASTOptimizeState *state)
         CALL_SEQ(astfold_expr, expr, node_->v.Assign.targets);
         CALL(astfold_expr, expr_ty, node_->v.Assign.value);
         break;
+    case DeferStmt_kind:
+        CALL(astfold_expr, expr, node_->v.DeferStmt.target);
+        CALL(astfold_expr, expr_ty, node_->v.DeferStmt.body);
+        break;
     case AugAssign_kind:
         CALL(astfold_expr, expr_ty, node_->v.AugAssign.target);
         CALL(astfold_expr, expr_ty, node_->v.AugAssign.value);

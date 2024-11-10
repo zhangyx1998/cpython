@@ -2019,6 +2019,10 @@ symtable_visit_stmt(struct symtable *st, stmt_ty s)
         VISIT(st, expr, s->v.AugAssign.value);
         break;
     }
+    case DeferStmt_kind:
+        VISIT(st, expr, s->v.DeferStmt.target);
+        VISIT(st, expr, s->v.DeferStmt.body);
+        break;
     case For_kind:
         VISIT(st, expr, s->v.For.target);
         VISIT(st, expr, s->v.For.iter);
