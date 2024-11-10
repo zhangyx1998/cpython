@@ -291,6 +291,16 @@ static int defer_expr_descr_set(PyObject *self, PyObject *obj,
   return descr_set(self, obj, value);
 }
 
+static PyObject *DeferExpr_eval(PyObject *self) {
+  OBSERVE(self);
+  return self;
+}
+
+static PyMethodDef defer_expr_methods[] = {
+    {"eval", (PyCFunction)DeferExpr_eval, METH_NOARGS, NULL},
+    {NULL, NULL},
+};
+
 PyTypeObject PyDeferExpr_Type = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0) "DeferExpr",
     sizeof(PyDeferExprObject),
@@ -318,7 +328,7 @@ PyTypeObject PyDeferExpr_Type = {
     (Py_ssize_t)0,
     (getiterfunc)defer_expr_iter,
     (iternextfunc)defer_expr_iternext,
-    (PyMethodDef *)0,
+    (PyMethodDef *)&defer_expr_methods,
     (PyMemberDef *)0,
     (PyGetSetDef *)0,
     (PyTypeObject *)0,
