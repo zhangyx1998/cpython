@@ -40,6 +40,7 @@ null_error(void)
 PyObject *
 PyObject_Type(PyObject *o)
 {
+    o = PyDeferExpr_Observe(o);
     PyObject *v;
 
     if (o == NULL) {
@@ -53,6 +54,7 @@ PyObject_Type(PyObject *o)
 Py_ssize_t
 PyObject_Size(PyObject *o)
 {
+    o = PyDeferExpr_Observe(o);
     if (o == NULL) {
         null_error();
         return -1;
@@ -78,6 +80,7 @@ PyObject_Length(PyObject *o)
 
 int
 _PyObject_HasLen(PyObject *o) {
+    o = PyDeferExpr_Observe(o);
     return (Py_TYPE(o)->tp_as_sequence && Py_TYPE(o)->tp_as_sequence->sq_length) ||
         (Py_TYPE(o)->tp_as_mapping && Py_TYPE(o)->tp_as_mapping->mp_length);
 }
@@ -91,6 +94,7 @@ _PyObject_HasLen(PyObject *o) {
 Py_ssize_t
 PyObject_LengthHint(PyObject *o, Py_ssize_t defaultvalue)
 {
+    o = PyDeferExpr_Observe(o);
     PyObject *hint, *result;
     Py_ssize_t res;
     if (_PyObject_HasLen(o)) {
@@ -149,6 +153,7 @@ PyObject_LengthHint(PyObject *o, Py_ssize_t defaultvalue)
 PyObject *
 PyObject_GetItem(PyObject *o, PyObject *key)
 {
+    o = PyDeferExpr_Observe(o);
     if (o == NULL || key == NULL) {
         return null_error();
     }
@@ -201,13 +206,14 @@ PyObject_GetItem(PyObject *o, PyObject *key)
 }
 
 int
-PyMapping_GetOptionalItem(PyObject *obj, PyObject *key, PyObject **result)
+PyMapping_GetOptionalItem(PyObject *o, PyObject *key, PyObject **result)
 {
-    if (PyDict_CheckExact(obj)) {
-        return PyDict_GetItemRef(obj, key, result);
+    o = PyDeferExpr_Observe(o);
+    if (PyDict_CheckExact(o)) {
+        return PyDict_GetItemRef(o, key, result);
     }
 
-    *result = PyObject_GetItem(obj, key);
+    *result = PyObject_GetItem(o, key);
     if (*result) {
         return 1;
     }
@@ -222,6 +228,7 @@ PyMapping_GetOptionalItem(PyObject *obj, PyObject *key, PyObject **result)
 int
 PyObject_SetItem(PyObject *o, PyObject *key, PyObject *value)
 {
+    o = PyDeferExpr_Observe(o);
     if (o == NULL || key == NULL || value == NULL) {
         null_error();
         return -1;
@@ -256,6 +263,7 @@ PyObject_SetItem(PyObject *o, PyObject *key, PyObject *value)
 int
 PyObject_DelItem(PyObject *o, PyObject *key)
 {
+    o = PyDeferExpr_Observe(o);
     if (o == NULL || key == NULL) {
         null_error();
         return -1;
@@ -290,6 +298,7 @@ PyObject_DelItem(PyObject *o, PyObject *key)
 int
 PyObject_DelItemString(PyObject *o, const char *key)
 {
+    o = PyDeferExpr_Observe(o);
     PyObject *okey;
     int ret;
 
@@ -308,9 +317,10 @@ PyObject_DelItemString(PyObject *o, const char *key)
 
 /* Return 1 if the getbuffer function is available, otherwise return 0. */
 int
-PyObject_CheckBuffer(PyObject *obj)
+PyObject_CheckBuffer(PyObject *o)
 {
-    PyBufferProcs *tp_as_buffer = Py_TYPE(obj)->tp_as_buffer;
+    o = PyDeferExpr_Observe(o);
+    PyBufferProcs *tp_as_buffer = Py_TYPE(o)->tp_as_buffer;
     return (tp_as_buffer != NULL && tp_as_buffer->bf_getbuffer != NULL);
 }
 
@@ -325,15 +335,16 @@ PyObject_CheckBuffer(PyObject *obj)
    cause issues later on.  Don't use these functions in new code.
  */
 PyAPI_FUNC(int) /* abi_only */
-PyObject_CheckReadBuffer(PyObject *obj)
+PyObject_CheckReadBuffer(PyObject *o)
 {
-    PyBufferProcs *pb = Py_TYPE(obj)->tp_as_buffer;
+    o = PyDeferExpr_Observe(o);
+    PyBufferProcs *pb = Py_TYPE(o)->tp_as_buffer;
     Py_buffer view;
 
     if (pb == NULL ||
         pb->bf_getbuffer == NULL)
         return 0;
-    if ((*pb->bf_getbuffer)(obj, &view, PyBUF_SIMPLE) == -1) {
+    if ((*pb->bf_getbuffer)(o, &view, PyBUF_SIMPLE) == -1) {
         PyErr_Clear();
         return 0;
     }
@@ -342,15 +353,16 @@ PyObject_CheckReadBuffer(PyObject *obj)
 }
 
 static int
-as_read_buffer(PyObject *obj, const void **buffer, Py_ssize_t *buffer_len)
+as_read_buffer(PyObject *o, const void **buffer, Py_ssize_t *buffer_len)
 {
+    o = PyDeferExpr_Observe(o);
     Py_buffer view;
 
-    if (obj == NULL || buffer == NULL || buffer_len == NULL) {
+    if (o == NULL || buffer == NULL || buffer_len == NULL) {
         null_error();
         return -1;
     }
-    if (PyObject_GetBuffer(obj, &view, PyBUF_SIMPLE) != 0)
+    if (PyObject_GetBuffer(o, &view, PyBUF_SIMPLE) != 0)
         return -1;
 
     *buffer = view.buf;
@@ -366,11 +378,12 @@ as_read_buffer(PyObject *obj, const void **buffer, Py_ssize_t *buffer_len)
    Return 0 on success.  buffer and buffer_len are only set in case no error
    occurs. Otherwise, -1 is returned and an exception set. */
 PyAPI_FUNC(int) /* abi_only */
-PyObject_AsCharBuffer(PyObject *obj,
+PyObject_AsCharBuffer(PyObject *o,
                       const char **buffer,
                       Py_ssize_t *buffer_len)
 {
-    return as_read_buffer(obj, (const void **)buffer, buffer_len);
+    o = PyDeferExpr_Observe(o);
+    return as_read_buffer(o, (const void **)buffer, buffer_len);
 }
 
 /* Same as PyObject_AsCharBuffer() except that this API expects (readable,
@@ -380,11 +393,12 @@ PyObject_AsCharBuffer(PyObject *obj,
    0 is returned on success.  buffer and buffer_len are only set in case no
    error occurs.  Otherwise, -1 is returned and an exception set. */
 PyAPI_FUNC(int) /* abi_only */
-PyObject_AsReadBuffer(PyObject *obj,
+PyObject_AsReadBuffer(PyObject *o,
                       const void **buffer,
                       Py_ssize_t *buffer_len)
 {
-    return as_read_buffer(obj, buffer, buffer_len);
+    o = PyDeferExpr_Observe(o);
+    return as_read_buffer(o, buffer, buffer_len);
 }
 
 /* Takes an arbitrary object which must support the (writable, single segment)
@@ -394,21 +408,22 @@ PyObject_AsReadBuffer(PyObject *obj,
    Return 0 on success.  buffer and buffer_len are only set in case no error
    occurs. Otherwise, -1 is returned and an exception set. */
 PyAPI_FUNC(int) /* abi_only */
-PyObject_AsWriteBuffer(PyObject *obj,
+PyObject_AsWriteBuffer(PyObject *o,
                        void **buffer,
                        Py_ssize_t *buffer_len)
 {
+    o = PyDeferExpr_Observe(o);
     PyBufferProcs *pb;
     Py_buffer view;
 
-    if (obj == NULL || buffer == NULL || buffer_len == NULL) {
+    if (o == NULL || buffer == NULL || buffer_len == NULL) {
         null_error();
         return -1;
     }
-    pb = Py_TYPE(obj)->tp_as_buffer;
+    pb = Py_TYPE(o)->tp_as_buffer;
     if (pb == NULL ||
         pb->bf_getbuffer == NULL ||
-        ((*pb->bf_getbuffer)(obj, &view, PyBUF_WRITABLE) != 0)) {
+        ((*pb->bf_getbuffer)(o, &view, PyBUF_WRITABLE) != 0)) {
         PyErr_SetString(PyExc_TypeError,
                         "expected a writable bytes-like object");
         return -1;
@@ -423,24 +438,25 @@ PyObject_AsWriteBuffer(PyObject *obj,
 /* Buffer C-API for Python 3.0 */
 
 int
-PyObject_GetBuffer(PyObject *obj, Py_buffer *view, int flags)
+PyObject_GetBuffer(PyObject *o, Py_buffer *view, int flags)
 {
+    o = PyDeferExpr_Observe(o);
     if (flags != PyBUF_SIMPLE) {  /* fast path */
         if (flags == PyBUF_READ || flags == PyBUF_WRITE) {
             PyErr_BadInternalCall();
             return -1;
         }
     }
-    PyBufferProcs *pb = Py_TYPE(obj)->tp_as_buffer;
+    PyBufferProcs *pb = Py_TYPE(o)->tp_as_buffer;
 
     if (pb == NULL || pb->bf_getbuffer == NULL) {
         PyErr_Format(PyExc_TypeError,
                      "a bytes-like object is required, not '%.100s'",
-                     Py_TYPE(obj)->tp_name);
+                     Py_TYPE(o)->tp_name);
         return -1;
     }
-    int res = (*pb->bf_getbuffer)(obj, view, flags);
-    assert(_Py_CheckSlotResult(obj, "getbuffer", res >= 0));
+    int res = (*pb->bf_getbuffer)(o, view, flags);
+    assert(_Py_CheckSlotResult(o, "getbuffer", res >= 0));
     return res;
 }
 
