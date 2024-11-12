@@ -1,5 +1,6 @@
 /* DeferExpr core implementation */
 
+#include "cpython/deferexprobject.h"
 #include "Python.h" // IWYU pragma: keep
 #include "object.h"
 #include "pycore_object.h"
@@ -24,6 +25,9 @@ PyObject *PyDeferExpr_New(PyObject *callable, unsigned char collapsible)
                                          "a non-callable object was supplied");
         return NULL;
     }
+
+    if (PyType_Ready(&PyDeferExpr_Type) < 0)
+        return NULL;
 
     PyDeferExprObject *op;
     op = PyObject_GC_New(PyDeferExprObject, &PyDeferExpr_Type);
@@ -415,6 +419,9 @@ static void defer_expr_exposed_dealloc(PyObject *self)
 PyObject *builtin_expose(PyObject *unused, PyObject *obj)
 {
     ENSURE_TYPE(obj, &PyDeferExpr_Type, return Py_None);
+
+    if (PyType_Ready(&PyDeferExprExposed_Type) < 0)
+        return NULL;
 
     PyDeferExprExposedObject *exposed =
         PyObject_GC_New(PyDeferExprExposedObject, &PyDeferExprExposed_Type);
