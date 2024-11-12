@@ -1,6 +1,7 @@
 /* DeferExpr core implementation */
 
 #include "Python.h" // IWYU pragma: keep
+#include "object.h"
 #include "pycore_object.h"
 #include "pyerrors.h"
 #include "pytypedefs.h"
@@ -45,6 +46,17 @@ PyObject *PyDeferExpr_Observe(PyObject *obj)
     // Short-circuit if the defer-expr is already collapsed
     if (self->collapsible && self->result != NULL)
         return self->result;
+
+    if (!PyCallable_Check(self->callable))
+    {
+        PyErr_Format(PyExc_RuntimeError,
+                     "Failed to observe DeferExpr: "
+                     "%s is not callable",
+                     (self->callable == NULL)
+                         ? "<void>"
+                         : Py_TYPE(self->callable)->tp_name);
+        return NULL;
+    }
 
     obj = PyObject_CallNoArgs(_Py_CAST(PyObject *, self->callable));
     obj = PyDeferExpr_Observe(obj);
@@ -432,85 +444,50 @@ PyObject *builtin_snapshot(PyObject *unused, PyObject *obj)
 
 /* =================== END: builtin methods for DeferExpr =================== */
 
-#define GETTER(NAME)                                                           \
-    static PyObject *defer_expr_exposed_get_##NAME(                            \
-        PyDeferExprExposedObject *self, void *unused)
-
-#define SETTER(NAME)                                                           \
-    static int defer_expr_exposed_set_##NAME(PyDeferExprExposedObject *self,   \
-                                             PyObject *value, void *unused)
-
-GETTER(collapsible)
+static PyObject *defer_expr_exposed_getattr(PyDeferExprExposedObject *self,
+                                            char *attr)
 {
-    if (self->ref->collapsible)
-        Py_RETURN_TRUE;
-    else
-        Py_RETURN_FALSE;
+    if (strcmp(attr, "collapsible") == 0)
+        return (self->ref->collapsible) ? (Py_True) : (Py_False);
+    else if (strcmp(attr, "callable") == 0 && self->ref->callable != NULL)
+        return Py_NewRef(self->ref->callable);
+    else if (strcmp(attr, "result") == 0 && self->ref->result != NULL)
+        return Py_NewRef(self->ref->result);
+    // No such attribute
+    PyErr_Format(PyExc_AttributeError, "<%s object> has no attribute \"%s\"",
+                 self->ob_base.ob_type->tp_name, attr);
+    return NULL;
 }
 
-SETTER(collapsible)
+static int defer_expr_exposed_setattr(PyDeferExprExposedObject *self,
+                                      char *attr, PyObject *value)
 {
-    if (Py_IsTrue(value))
-        self->ref->collapsible = 1;
-    else
-        self->ref->collapsible = 0;
-    return 0;
-}
-
-GETTER(callable)
-{
-    PyObject *res = Py_XNewRef(self->ref->callable);
-    if (res == NULL)
+    if (strcmp(attr, "collapsible") == 0)
+        self->ref->collapsible = Py_IsTrue(value) ? 1 : 0;
+    else if (strcmp(attr, "callable") == 0)
     {
-        PyErr_SetString(PyExc_AttributeError,
-                        "attribute <callable> does not exist");
-        return NULL;
+        // Allow deletion of the callable attribute as long as user knows what
+        // they are doing. Setting none-callable object is also allowed but will
+        // error out upon observation of the DeferExpr
+        Py_XDECREF(self->ref->callable);
+        self->ref->callable = Py_XNewRef(value);
     }
-    return res;
-}
-
-SETTER(callable)
-{
-    if (value != NULL && !PyCallable_Check(value))
+    else if (strcmp(attr, "result") == 0)
     {
-        PyErr_SetString(PyExc_TypeError, "value must be callable");
+        // A frozen DeferExpr's result may be manually tweaked as long as user
+        // knows what they are doing
+        Py_XDECREF(self->ref->result);
+        self->ref->result = Py_XNewRef(value);
+    }
+    else // No such attribute
+    {
+        PyErr_Format(PyExc_AttributeError,
+                     "<%s object> has no attribute \"%s\"",
+                     self->ob_base.ob_type->tp_name, attr);
         return -1;
     }
-    Py_XDECREF(self->ref->callable);
-    self->ref->callable = Py_XNewRef(value);
     return 0;
 }
-
-GETTER(result)
-{
-    PyObject *res = self->ref->result;
-    if (res == NULL)
-    {
-        PyErr_SetString(PyExc_AttributeError,
-                        "attribute <result> does not exist");
-        return NULL;
-    }
-    return Py_NewRef(res);
-}
-
-SETTER(result)
-{
-    // A frozen DeferExpr's result may be manually tweaked
-    // as long as user knows what they are doing
-    Py_XDECREF(self->ref->result);
-    self->ref->result = Py_XNewRef(value);
-    return 0;
-}
-
-static PyGetSetDef DeferExpr_getsetlist[] = {
-    {"collapsible", (getter)defer_expr_exposed_get_collapsible,
-     (setter)defer_expr_exposed_set_collapsible},
-    {"callable", (getter)defer_expr_exposed_get_callable,
-     (setter)defer_expr_exposed_set_callable},
-    {"result", (getter)defer_expr_exposed_get_result,
-     (setter)defer_expr_exposed_set_result},
-    {NULL, NULL, NULL, NULL, NULL},
-};
 
 PyTypeObject PyDeferExprExposed_Type = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0) //
@@ -519,8 +496,8 @@ PyTypeObject PyDeferExprExposed_Type = {
     (Py_ssize_t)0,
     (destructor)defer_expr_exposed_dealloc,
     (Py_ssize_t)0,
-    (getattrfunc)0,
-    (setattrfunc)0,
+    (getattrfunc)defer_expr_exposed_getattr,
+    (setattrfunc)defer_expr_exposed_setattr,
     (PyAsyncMethods *)0,
     (reprfunc)0,
     (PyNumberMethods *)0,
@@ -542,7 +519,7 @@ PyTypeObject PyDeferExprExposed_Type = {
     (iternextfunc)0,
     (PyMethodDef *)0,
     (PyMemberDef *)0,
-    (PyGetSetDef *)DeferExpr_getsetlist,
+    (PyGetSetDef *)0,
     (PyTypeObject *)0,
     (PyObject *)0,
     (descrgetfunc)0,
