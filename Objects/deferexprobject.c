@@ -464,6 +464,7 @@ GETTER(callable)
     {
         PyErr_SetString(PyExc_AttributeError,
                         "attribute <callable> does not exist");
+        return NULL;
     }
     return res;
 }
@@ -487,6 +488,7 @@ GETTER(result)
     {
         PyErr_SetString(PyExc_AttributeError,
                         "attribute <result> does not exist");
+        return NULL;
     }
     return Py_NewRef(res);
 }
