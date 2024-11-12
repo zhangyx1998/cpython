@@ -2,20 +2,25 @@
 
 #include "Python.h" // IWYU pragma: keep
 #include "pycore_object.h"
+#include "pyerrors.h"
+#include "pytypedefs.h"
+#include "refcount.h"
 
 PyDoc_STRVAR(defer_expr_doc, "DeferExpr\n"
-                             "--\n"
-                             "\n"
-                             "Create a new DeferExpr.\n"
-                             "\n"
-                             "  contents\n"
-                             "    TODO: add doc.");
+                             "(TODO) Add docs");
 
-PyObject *PyDeferExpr_New(PyObject *lambda)
+#define ENSURE_TYPE(OBJ, TYPE, PANIC)                                          \
+    if (!Py_IS_TYPE(OBJ, TYPE))                                                \
+    {                                                                          \
+        PANIC;                                                                 \
+    }
+
+PyObject *PyDeferExpr_New(PyObject *callable, unsigned char collapsible)
 {
-    if (!PyCallable_Check(lambda))
+    if (!PyCallable_Check(callable))
     {
-        PyErr_SetString(PyExc_TypeError, "Failed to construct DeferExpr");
+        PyErr_SetString(PyExc_TypeError, "Failed to construct DeferExpr: "
+                                         "a non-callable object was supplied");
         return NULL;
     }
 
@@ -25,70 +30,29 @@ PyObject *PyDeferExpr_New(PyObject *lambda)
     if (op == NULL)
         return NULL;
 
-    op->callable = Py_NewRef(lambda);
-    op->collapsing = 0;
+    op->callable = Py_NewRef(callable);
+    op->collapsible = collapsible;
     op->result = NULL;
 
-    _PyObject_GC_TRACK(op);
+    PyObject_GC_Track(op);
     return (PyObject *)op;
 }
 
 PyObject *PyDeferExpr_Observe(PyObject *obj)
 {
-    if (!Py_IS_TYPE(obj, &PyDeferExpr_Type))
-        return obj;
-
+    ENSURE_TYPE(obj, &PyDeferExpr_Type, return obj);
     PyDeferExprObject *self = _Py_CAST(PyDeferExprObject *, obj);
     // Short-circuit if the defer-expr is already collapsed
-    if (self->collapsing && self->result != NULL)
+    if (self->collapsible && self->result != NULL)
         return self->result;
 
     obj = PyObject_CallNoArgs(_Py_CAST(PyObject *, self->callable));
     obj = PyDeferExpr_Observe(obj);
 
-    if (self->collapsing)
+    if (self->collapsible)
         self->result = obj;
 
     return obj;
-}
-
-PyObject *defer_expr_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
-{
-    // Type must be DeferExpr_Type
-    if (type != &PyDeferExpr_Type)
-    {
-        PyErr_BadInternalCall();
-        return NULL;
-    }
-    // Use only the first positional argument as the lambda
-    PyObject *callable = NULL;
-
-    if (!PyArg_UnpackTuple(args, "DeferExpr", 1, 1, &callable))
-        return NULL;
-
-    return PyDeferExpr_New(callable);
-}
-
-static void defer_expr_dealloc(PyObject *self)
-{
-    if (!Py_IS_TYPE(self, &PyDeferExpr_Type))
-    {
-        PyErr_BadInternalCall();
-        return;
-    }
-    _PyObject_GC_UNTRACK(self);
-    PyDeferExprObject *defer = (PyDeferExprObject *)self;
-    Py_XDECREF(defer->callable);
-}
-
-static void defer_expr_free(PyObject *self)
-{
-    if (!Py_IS_TYPE(self, &PyDeferExpr_Type))
-    {
-        PyErr_BadInternalCall();
-        return;
-    }
-    PyObject_GC_Del(self);
 }
 
 // Core idea of the DeferExpr - observation triggers evaluation
@@ -280,29 +244,21 @@ static int defer_expr_setattro(PyObject *self, PyObject *attr, PyObject *value)
 
 // Special: not a proxied method
 // Traverse enclosed objects for garbage collection
-static int defer_expr_traverse(PyObject *self, visitproc visit, void *arg)
+static int defer_expr_traverse(PyDeferExprObject *self, visitproc visit,
+                               void *arg)
 {
-    if (!Py_IS_TYPE(self, &PyDeferExpr_Type))
-    {
-        PyErr_BadInternalCall();
-        return -1;
-    }
-    Py_VISIT(_Py_CAST(PyDeferExprObject *, self)->callable);
+    Py_VISIT(self->callable);
+    Py_VISIT(self->result);
     return 0;
 }
 
 // Special: not a proxied method
 // Clear our reference to the callable object
 // User might gain access to it using tools from the inspect module
-static int defer_expr_clear(PyObject *self)
+static int defer_expr_clear(PyDeferExprObject *self)
 {
-    if (!Py_IS_TYPE(self, &PyDeferExpr_Type))
-    {
-        PyErr_BadInternalCall();
-        return -1;
-    }
-    PyDeferExprObject *defer = (PyDeferExprObject *)self;
-    Py_CLEAR(defer->callable);
+    Py_CLEAR(self->callable);
+    Py_CLEAR(self->result);
     return 0;
 }
 
@@ -352,19 +308,35 @@ static int defer_expr_descr_set(PyObject *self, PyObject *obj, PyObject *value)
     return descr_set(self, obj, value);
 }
 
-static PyObject *DeferExpr_eval(PyObject *self)
+PyObject *defer_expr_new(PyTypeObject *type_unused, PyObject *args,
+                         PyObject *kwargs)
 {
-    OBSERVE(self) ON_FAILURE({});
-    return self;
+    // Use the first positional argument as the lambda
+    PyObject *callable = NULL;
+    if (!PyArg_UnpackTuple(args, "callable", 1, 1, &callable))
+        return NULL;
+
+    // Check optional keyword-only argument "collapsible"
+    PyObject *collapsible = NULL;
+    if (kwargs != NULL)
+        collapsible = PyDict_GetItemString(kwargs, "collapsible");
+
+    if (collapsible == NULL || !PyObject_IsTrue(collapsible))
+        return PyDeferExpr_New(callable, 0);
+    else
+        return PyDeferExpr_New(callable, 1);
 }
 
-static PyMethodDef defer_expr_methods[] = {
-    {"eval", (PyCFunction)DeferExpr_eval, METH_NOARGS, NULL},
-    {NULL, NULL},
-};
+static void defer_expr_dealloc(PyObject *self)
+{
+    PyObject_GC_UnTrack(self);
+    defer_expr_clear((PyDeferExprObject *)self);
+    PyObject_GC_Del(self);
+}
 
 PyTypeObject PyDeferExpr_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "DeferExpr",
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) //
+    "DeferExpr",
     sizeof(PyDeferExprObject),
     (Py_ssize_t)0,
     (destructor)defer_expr_dealloc,
@@ -390,7 +362,7 @@ PyTypeObject PyDeferExpr_Type = {
     (Py_ssize_t)0,
     (getiterfunc)defer_expr_iter,
     (iternextfunc)defer_expr_iternext,
-    (PyMethodDef *)&defer_expr_methods,
+    (PyMethodDef *)0,
     (PyMemberDef *)0,
     (PyGetSetDef *)0,
     (PyTypeObject *)0,
@@ -401,5 +373,181 @@ PyTypeObject PyDeferExpr_Type = {
     (initproc)0,
     (allocfunc)0,
     (newfunc)defer_expr_new,
-    (freefunc)defer_expr_free,
+    (freefunc)0,
+};
+
+// Exposed version of the DeferExpr through `DeferExpr.expose()` method
+
+static int defer_expr_exposed_traverse(PyDeferExprExposedObject *self,
+                                       visitproc visit, void *arg)
+{
+    Py_VISIT(self->ref);
+    return 0;
+}
+
+static int defer_expr_exposed_clear(PyDeferExprExposedObject *self)
+{
+    Py_CLEAR(self->ref);
+    return 0;
+}
+
+static void defer_expr_exposed_dealloc(PyObject *self)
+{
+    PyObject_GC_UnTrack(self);
+    defer_expr_exposed_clear((PyDeferExprExposedObject *)self);
+    PyObject_GC_Del(self);
+}
+
+/* ================== BEGIN: builtin methods for DeferExpr ================== */
+
+PyObject *builtin_expose(PyObject *unused, PyObject *obj)
+{
+    ENSURE_TYPE(obj, &PyDeferExpr_Type, return Py_None);
+
+    PyDeferExprExposedObject *exposed =
+        PyObject_GC_New(PyDeferExprExposedObject, &PyDeferExprExposed_Type);
+
+    if (exposed == NULL)
+        return NULL;
+
+    exposed->ref = _Py_CAST(PyDeferExprObject *, Py_NewRef(obj));
+
+    PyObject_GC_Track(exposed);
+    return (PyObject *)exposed;
+}
+
+// Observe immediately (if not already) and prevent future re-evaluation.
+PyObject *builtin_freeze(PyObject *unused, PyObject *obj)
+{
+    ENSURE_TYPE(obj, &PyDeferExpr_Type, return obj);
+    _Py_CAST(PyDeferExprObject *, obj)->collapsible = 1;
+    return PyDeferExpr_Observe(obj);
+}
+
+// Observe immediately, use cached result if appropriate.
+PyObject *builtin_snapshot(PyObject *unused, PyObject *obj)
+{
+    return PyDeferExpr_Observe(obj);
+}
+
+/* =================== END: builtin methods for DeferExpr =================== */
+
+#define GETTER(NAME)                                                           \
+    static PyObject *defer_expr_exposed_get_##NAME(                            \
+        PyDeferExprExposedObject *self, void *unused)
+
+#define SETTER(NAME)                                                           \
+    static int defer_expr_exposed_set_##NAME(PyDeferExprExposedObject *self,   \
+                                             PyObject *value, void *unused)
+
+GETTER(collapsible)
+{
+    if (self->ref->collapsible)
+        Py_RETURN_TRUE;
+    else
+        Py_RETURN_FALSE;
+}
+
+SETTER(collapsible)
+{
+    if (Py_IsTrue(value))
+        self->ref->collapsible = 1;
+    else
+        self->ref->collapsible = 0;
+    return 0;
+}
+
+GETTER(callable)
+{
+    PyObject *res = Py_XNewRef(self->ref->callable);
+    if (res == NULL)
+    {
+        PyErr_SetString(PyExc_AttributeError,
+                        "attribute <callable> does not exist");
+    }
+    return res;
+}
+
+SETTER(callable)
+{
+    if (value != NULL && !PyCallable_Check(value))
+    {
+        PyErr_SetString(PyExc_TypeError, "value must be callable");
+        return -1;
+    }
+    Py_XDECREF(self->ref->callable);
+    self->ref->callable = Py_XNewRef(value);
+    return 0;
+}
+
+GETTER(result)
+{
+    PyObject *res = self->ref->result;
+    if (res == NULL)
+    {
+        PyErr_SetString(PyExc_AttributeError,
+                        "attribute <result> does not exist");
+    }
+    return Py_NewRef(res);
+}
+
+SETTER(result)
+{
+    // A frozen DeferExpr's result may be manually tweaked
+    // as long as user knows what they are doing
+    Py_XDECREF(self->ref->result);
+    self->ref->result = Py_XNewRef(value);
+    return 0;
+}
+
+static PyGetSetDef DeferExpr_getsetlist[] = {
+    {"collapsible", (getter)defer_expr_exposed_get_collapsible,
+     (setter)defer_expr_exposed_set_collapsible},
+    {"callable", (getter)defer_expr_exposed_get_callable,
+     (setter)defer_expr_exposed_set_callable},
+    {"result", (getter)defer_expr_exposed_get_result,
+     (setter)defer_expr_exposed_set_result},
+    {NULL, NULL, NULL, NULL, NULL},
+};
+
+PyTypeObject PyDeferExprExposed_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) //
+    "DeferExprExposed",
+    sizeof(PyDeferExprExposedObject),
+    (Py_ssize_t)0,
+    (destructor)defer_expr_exposed_dealloc,
+    (Py_ssize_t)0,
+    (getattrfunc)0,
+    (setattrfunc)0,
+    (PyAsyncMethods *)0,
+    (reprfunc)0,
+    (PyNumberMethods *)0,
+    (PySequenceMethods *)0,
+    (PyMappingMethods *)0,
+    (hashfunc)0,
+    (ternaryfunc)0,
+    (reprfunc)0,
+    (getattrofunc)0,
+    (setattrofunc)0,
+    0,
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    defer_expr_doc,
+    (traverseproc)defer_expr_exposed_traverse,
+    (inquiry)defer_expr_exposed_clear,
+    (richcmpfunc)0,
+    (Py_ssize_t)0,
+    (getiterfunc)0,
+    (iternextfunc)0,
+    (PyMethodDef *)0,
+    (PyMemberDef *)0,
+    (PyGetSetDef *)DeferExpr_getsetlist,
+    (PyTypeObject *)0,
+    (PyObject *)0,
+    (descrgetfunc)0,
+    (descrsetfunc)0,
+    (Py_ssize_t)0,
+    (initproc)0,
+    (allocfunc)0,
+    (newfunc)0,
+    (freefunc)0,
 };

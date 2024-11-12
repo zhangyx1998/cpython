@@ -4535,7 +4535,7 @@ dummy_func(
 
         inst(MAKE_DEFER_EXPR, (func_in -- defer_expr_out)) {
           PyObject *func = PyStackRef_AsPyObjectBorrow(func_in);
-          PyObject *defer_expr = PyDeferExpr_New(func);
+          PyObject *defer_expr = PyDeferExpr_New(func, 0);
           PyStackRef_CLOSE(func_in);
           ERROR_IF(defer_expr == NULL, error);
           defer_expr_out = PyStackRef_FromPyObjectSteal(defer_expr);

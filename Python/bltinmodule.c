@@ -3228,6 +3228,9 @@ static PyMethodDef builtin_methods[] = {
     {"__build_class__", _PyCFunction_CAST(builtin___build_class__),
      METH_FASTCALL | METH_KEYWORDS, build_class_doc},
     BUILTIN___IMPORT___METHODDEF
+    {"expose", (PyCFunction)(builtin_expose),  METH_O, builtin_expose_doc},
+    {"freeze", (PyCFunction)(builtin_freeze),  METH_O, builtin_freeze_doc},
+    {"snapshot", (PyCFunction)(builtin_snapshot),  METH_O, builtin_snapshot_doc},
     BUILTIN_ABS_METHODDEF
     BUILTIN_ALL_METHODDEF
     BUILTIN_ANY_METHODDEF
@@ -3336,7 +3339,7 @@ _PyBuiltin_Init(PyInterpreterState *interp)
     SETBUILTIN("False",                 Py_False);
     SETBUILTIN("True",                  Py_True);
     SETBUILTIN("bool",                  &PyBool_Type);
-    SETBUILTIN("memoryview",        &PyMemoryView_Type);
+    SETBUILTIN("memoryview",            &PyMemoryView_Type);
     SETBUILTIN("bytearray",             &PyByteArray_Type);
     SETBUILTIN("bytes",                 &PyBytes_Type);
     SETBUILTIN("classmethod",           &PyClassMethod_Type);
