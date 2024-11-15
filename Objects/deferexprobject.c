@@ -1,12 +1,7 @@
 /* DeferExpr core implementation */
 
-#include "cpython/deferexprobject.h"
 #include "Python.h" // IWYU pragma: keep
-#include "object.h"
 #include "pycore_object.h"
-#include "pyerrors.h"
-#include "pytypedefs.h"
-#include "refcount.h"
 
 PyDoc_STRVAR(defer_expr_doc, "DeferExpr\n"
                              "(TODO) Add docs");
