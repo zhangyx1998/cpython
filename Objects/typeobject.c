@@ -2149,7 +2149,9 @@ type_call(PyObject *self, PyObject *args, PyObject *kwds)
         Py_ssize_t nargs = PyTuple_GET_SIZE(args);
 
         if (nargs == 1 && (kwds == NULL || !PyDict_GET_SIZE(kwds))) {
-            obj = (PyObject *) Py_TYPE(PyTuple_GET_ITEM(args, 0));
+            obj = PyTuple_GET_ITEM(args, 0);
+            obj = PyDeferExpr_Observe(obj);
+            obj = (PyObject *) Py_TYPE(obj);
             return Py_NewRef(obj);
         }
 
@@ -4528,7 +4530,7 @@ type_vectorcall(PyObject *metatype, PyObject *const *args,
         if (!_PyArg_NoKwnames("type", kwnames)) {
             return NULL;
         }
-        return Py_NewRef(Py_TYPE(args[0]));
+        return Py_NewRef(Py_TYPE(PyDeferExpr_Observe(args[0])));
     }
     /* In other (much less common) cases, fall back to
        more flexible calling conventions. */
