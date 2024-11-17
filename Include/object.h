@@ -162,7 +162,6 @@ typedef struct {
 /* Cast argument to PyVarObject* type. */
 #define _PyVarObject_CAST(op) _Py_CAST(PyVarObject*, (op))
 
-
 // Test if the 'x' object is the 'y' object, the same as "x is y" in Python.
 PyAPI_FUNC(int) Py_Is(PyObject *x, PyObject *y);
 #define Py_Is(x, y) ((x) == (y))

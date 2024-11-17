@@ -3228,9 +3228,6 @@ static PyMethodDef builtin_methods[] = {
     {"__build_class__", _PyCFunction_CAST(builtin___build_class__),
      METH_FASTCALL | METH_KEYWORDS, build_class_doc},
     BUILTIN___IMPORT___METHODDEF
-    {"expose", (PyCFunction)(builtin_expose),  METH_O, builtin_expose_doc},
-    {"freeze", (PyCFunction)(builtin_freeze),  METH_O, builtin_freeze_doc},
-    {"snapshot", (PyCFunction)(builtin_snapshot),  METH_O, builtin_snapshot_doc},
     BUILTIN_ABS_METHODDEF
     BUILTIN_ALL_METHODDEF
     BUILTIN_ANY_METHODDEF
@@ -3364,7 +3361,7 @@ _PyBuiltin_Init(PyInterpreterState *interp)
     SETBUILTIN("tuple",                 &PyTuple_Type);
     SETBUILTIN("type",                  &PyType_Type);
     SETBUILTIN("zip",                   &PyZip_Type);
-    SETBUILTIN("DeferExpr",             &PyDeferExpr_Type);
+    SETBUILTIN("defer",                 &PyDefer_Type);
     debug = PyBool_FromLong(config->optimization_level == 0);
     if (PyDict_SetItemString(dict, "__debug__", debug) < 0) {
         Py_DECREF(debug);

@@ -3011,25 +3011,33 @@ Py_XNewRef(PyObject *obj)
 #undef Py_IsTrue
 #undef Py_IsFalse
 
+// Advance definition of PyDefer_Observe
+PyAPI_FUNC(PyObject *) PyDefer_Observe(PyObject *obj);
+
 // Export Py_Is(), Py_IsNone(), Py_IsTrue(), Py_IsFalse() as regular functions
 // for the stable ABI.
 int Py_Is(PyObject *x, PyObject *y)
 {
+    x = PyDefer_Observe(x);
+    y = PyDefer_Observe(y);
     return (x == y);
 }
 
 int Py_IsNone(PyObject *x)
 {
+    x = PyDefer_Observe(x);
     return Py_Is(x, Py_None);
 }
 
 int Py_IsTrue(PyObject *x)
 {
+    x = PyDefer_Observe(x);
     return Py_Is(x, Py_True);
 }
 
 int Py_IsFalse(PyObject *x)
 {
+    x = PyDefer_Observe(x);
     return Py_Is(x, Py_False);
 }
 

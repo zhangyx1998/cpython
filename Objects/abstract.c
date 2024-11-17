@@ -40,7 +40,7 @@ null_error(void)
 PyObject *
 PyObject_Type(PyObject *o)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     PyObject *v;
 
     if (o == NULL) {
@@ -54,7 +54,7 @@ PyObject_Type(PyObject *o)
 Py_ssize_t
 PyObject_Size(PyObject *o)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     if (o == NULL) {
         null_error();
         return -1;
@@ -80,7 +80,7 @@ PyObject_Length(PyObject *o)
 
 int
 _PyObject_HasLen(PyObject *o) {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     return (Py_TYPE(o)->tp_as_sequence && Py_TYPE(o)->tp_as_sequence->sq_length) ||
         (Py_TYPE(o)->tp_as_mapping && Py_TYPE(o)->tp_as_mapping->mp_length);
 }
@@ -94,7 +94,7 @@ _PyObject_HasLen(PyObject *o) {
 Py_ssize_t
 PyObject_LengthHint(PyObject *o, Py_ssize_t defaultvalue)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     PyObject *hint, *result;
     Py_ssize_t res;
     if (_PyObject_HasLen(o)) {
@@ -153,7 +153,7 @@ PyObject_LengthHint(PyObject *o, Py_ssize_t defaultvalue)
 PyObject *
 PyObject_GetItem(PyObject *o, PyObject *key)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     if (o == NULL || key == NULL) {
         return null_error();
     }
@@ -208,7 +208,7 @@ PyObject_GetItem(PyObject *o, PyObject *key)
 int
 PyMapping_GetOptionalItem(PyObject *o, PyObject *key, PyObject **result)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     if (PyDict_CheckExact(o)) {
         return PyDict_GetItemRef(o, key, result);
     }
@@ -228,7 +228,7 @@ PyMapping_GetOptionalItem(PyObject *o, PyObject *key, PyObject **result)
 int
 PyObject_SetItem(PyObject *o, PyObject *key, PyObject *value)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     if (o == NULL || key == NULL || value == NULL) {
         null_error();
         return -1;
@@ -263,7 +263,7 @@ PyObject_SetItem(PyObject *o, PyObject *key, PyObject *value)
 int
 PyObject_DelItem(PyObject *o, PyObject *key)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     if (o == NULL || key == NULL) {
         null_error();
         return -1;
@@ -298,7 +298,7 @@ PyObject_DelItem(PyObject *o, PyObject *key)
 int
 PyObject_DelItemString(PyObject *o, const char *key)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     PyObject *okey;
     int ret;
 
@@ -319,7 +319,7 @@ PyObject_DelItemString(PyObject *o, const char *key)
 int
 PyObject_CheckBuffer(PyObject *o)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     PyBufferProcs *tp_as_buffer = Py_TYPE(o)->tp_as_buffer;
     return (tp_as_buffer != NULL && tp_as_buffer->bf_getbuffer != NULL);
 }
@@ -337,7 +337,7 @@ PyObject_CheckBuffer(PyObject *o)
 PyAPI_FUNC(int) /* abi_only */
 PyObject_CheckReadBuffer(PyObject *o)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     PyBufferProcs *pb = Py_TYPE(o)->tp_as_buffer;
     Py_buffer view;
 
@@ -355,7 +355,7 @@ PyObject_CheckReadBuffer(PyObject *o)
 static int
 as_read_buffer(PyObject *o, const void **buffer, Py_ssize_t *buffer_len)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     Py_buffer view;
 
     if (o == NULL || buffer == NULL || buffer_len == NULL) {
@@ -382,7 +382,7 @@ PyObject_AsCharBuffer(PyObject *o,
                       const char **buffer,
                       Py_ssize_t *buffer_len)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     return as_read_buffer(o, (const void **)buffer, buffer_len);
 }
 
@@ -397,7 +397,7 @@ PyObject_AsReadBuffer(PyObject *o,
                       const void **buffer,
                       Py_ssize_t *buffer_len)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     return as_read_buffer(o, buffer, buffer_len);
 }
 
@@ -412,7 +412,7 @@ PyObject_AsWriteBuffer(PyObject *o,
                        void **buffer,
                        Py_ssize_t *buffer_len)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     PyBufferProcs *pb;
     Py_buffer view;
 
@@ -440,7 +440,7 @@ PyObject_AsWriteBuffer(PyObject *o,
 int
 PyObject_GetBuffer(PyObject *o, Py_buffer *view, int flags)
 {
-    o = PyDeferExpr_Observe(o);
+    o = PyDefer_Observe(o);
     if (flags != PyBUF_SIMPLE) {  /* fast path */
         if (flags == PyBUF_READ || flags == PyBUF_WRITE) {
             PyErr_BadInternalCall();
