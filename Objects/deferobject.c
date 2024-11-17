@@ -423,7 +423,7 @@ static int defer_descr_set(PyObject *self, PyObject *obj, PyObject *value)
 }
 
 // By default, we re-evaluate a defer object on every observation
-static const unsigned char mutable_default = 0;
+static const unsigned char mutable_default = 1;
 
 PyObject *defer_new(PyTypeObject *unused, PyObject *args, PyObject *kwargs)
 {
