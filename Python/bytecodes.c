@@ -2481,13 +2481,9 @@ dummy_func(
         }
 
         inst(IS_OP, (left, right -- b)) {
-#ifdef Py_GIL_DISABLED
-            // On free-threaded builds, objects are conditionally immortalized.
-            // So their bits don't always compare equally.
-            int res = Py_Is(PyStackRef_AsPyObjectBorrow(left), PyStackRef_AsPyObjectBorrow(right)) ^ oparg;
-#else
-            int res = PyStackRef_Is(left, right) ^ oparg;
-#endif
+            PyObject *left_o = PyStackRef_AsPyObjectBorrow(left);
+            PyObject *right_o = PyStackRef_AsPyObjectBorrow(right);
+            int res = Py_Is(left_o, right_o) ^ oparg;
             DECREF_INPUTS();
             b = res ? PyStackRef_True : PyStackRef_False;
         }

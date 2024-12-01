@@ -164,7 +164,6 @@ typedef struct {
 
 // Test if the 'x' object is the 'y' object, the same as "x is y" in Python.
 PyAPI_FUNC(int) Py_Is(PyObject *x, PyObject *y);
-#define Py_Is(x, y) ((x) == (y))
 
 #if defined(Py_GIL_DISABLED) && !defined(Py_LIMITED_API)
 PyAPI_FUNC(uintptr_t) _Py_GetThreadLocal_Addr(void);
